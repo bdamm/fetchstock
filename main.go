@@ -25,7 +25,7 @@ func main() {
 	symbol := "GE"
 	startyear := 2000
 	endyear := 2000
-	url := fmt.Sprintf("http://ichart.yahoo.com/table.csv?s=%v&a=00&b=01&c=%v&d=00&e=30&f=%v&g=d&ignore=.csv", symbol, startyear, endyear)
+	url := fmt.Sprintf("http://ichart.yahoo.com/table.csv?s=%v&a=00&b=01&c=%v&d=11&e=31&f=%v&g=d&ignore=.csv", symbol, startyear, endyear)
 	resp, err := http.Get(url);
 	if err != nil {
 		// handle error
@@ -39,8 +39,9 @@ func main() {
 		fmt.Println(string(body));
 	}
 
-
+	// write whole the body
+	err = ioutil.WriteFile("data." + symbol + "", body, 0644)
+	if err != nil { panic(err) }
 
 	// ...
-
 }
