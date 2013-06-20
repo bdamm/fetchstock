@@ -71,13 +71,32 @@ type TickerData struct {
 	adjclose float32
 }
 
-func pc(s string) (float32, error) {
+func pc(s string) float32 {
 	a, e := strconv.ParseFloat(s, 32)
-	return float32(a), e
+	if e != nil {panic(e)}
+	return float32(a)
+}
+func pi(s string) int {
+	a, e := strconv.ParseInt(s, 10, 0)
+	if e != nil {panic(e)}
+	return int(a)
 }
 
-func (t []TickerData) Len() int {
-	return len(t)
+type TickerDataCollection []TickerData
+
+func (t TickerDataCollection) Len() int {
+	return len([]TickerData(t))
+}
+func (t TickerDataCollection) Less(i, j int) bool {
+	a := ([]TickerData(t))[i]
+	b := ([]TickerData(t))[j]
+	return a.date < b.date
+}
+func (t TickerDataCollection) Swap(i, j int) {
+	a := ([]TickerData(t))[i]
+	b := ([]TickerData(t))[j]
+	([]TickerData(t))[i] = b
+	([]TickerData(t))[j] = a
 }
 
 func readTickerData(filename string) ([]TickerData, error) {
@@ -88,11 +107,14 @@ func readTickerData(filename string) ([]TickerData, error) {
 	if err != nil { return nil, err }
 	records = records[1:] // chomp the first line; it's the header
 
-	result := make([]TickerData, len(records))
-	for r := range(records) {
-		d := TickerData(r[0], pc(r[1]), pc(r[2]), pc(r[3]), pc(r[4]), pc(r[5]), pc(r[6]))
+	result := TickerDataCollection(make([]TickerData, len(records)))
+	for i := 0; i < len(records); i++ {
+		r := records[i];
+		d := TickerData{r[0], pc(r[1]), pc(r[2]), pc(r[3]), pc(r[4]), pi(r[5]), pc(r[6])}
+		result[i] = d
+		i++;
 	}
-	sort.Sort(records)
+	sort.Sort(result)
 
 	return nil, nil
 }
