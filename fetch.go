@@ -36,7 +36,7 @@ func (t tickerRange) ToYahooUrl() (*string, error) {
 }
 
 func fetchSymbol(sym string, filename string) error {
-	ticker := ticker{"GE"}
+	ticker := ticker{sym}
 
 	tickerRange := tickerRange{ticker, 2000, 01, 01, 2000, 12, 31}
 
