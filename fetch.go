@@ -1,6 +1,5 @@
 package main
 
-import "errors"
 import "io/ioutil"
 import "fmt"
 import "net/http"
@@ -18,12 +17,17 @@ type tickerRange struct {
 	endday     int
 }
 
-func (t *tickerRange) ToYahooUrl() (string, error) {
-	if t.startmonth == 0 || t.endmonth == 0 { return "", errors.New("months are expressed 1-12.") }
-	url := fmt.Sprintf("http://ichart.yahoo.com/table.csv?s=%v&a=00&b=01&c=%v&d=11&e=31&f=%v&g=d&ignore=.csv",
-		t.ticker, t.startmonth-1, t.startday, t.startyear, t.endmonth-1, t.endday, t.endyear)
+type TickerError string
+func (t TickerError) Error() string {
+	return string(t);
+}
 
-	return url, nil;
+func (t tickerRange) ToYahooUrl() (*string, error) {
+	if t.startmonth == 0 || t.endmonth == 0 { return nil, TickerError("months are expressed 1-12.") }
+	url := fmt.Sprintf("http://ichart.yahoo.com/table.csv?s=%v&a=%v&b=%v&c=%v&d=%v&e=%v&f=%v&g=d&ignore=.csv",
+		t.ticker.symbol, t.startmonth-1, t.startday, t.startyear, t.endmonth-1, t.endday, t.endyear)
+
+	return &url, nil;
 }
 
 func main() {
@@ -45,14 +49,12 @@ func main() {
 	ticker := ticker{"GE"}
 
 	tickerRange := tickerRange{ticker, 2000, 01, 01, 2000, 12, 31}
-	
-	tickerRange.ToYahooUrl();
 
-	url := fmt.Sprintf("http://ichart.yahoo.com/table.csv?s=%v&a=00&b=01&c=%v&d=11&e=31&f=%v&g=d&ignore=.csv", symbol, startyear, endyear)
-	resp, err := http.Get(url)
-	if err != nil {
-		// handle error
-	}
+	url,err := tickerRange.ToYahooUrl()
+	if err != nil { fmt.Println(err); return }
+
+	resp, err := http.Get(*url)
+	if err != nil { fmt.Println(err); return }
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -63,7 +65,7 @@ func main() {
 	}
 
 	// write whole the body
-	err = ioutil.WriteFile("data."+symbol+"", body, 0644)
+	err = ioutil.WriteFile("data."+ticker.symbol+"", body, 0644)
 	if err != nil {
 		panic(err)
 	}
