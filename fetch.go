@@ -82,21 +82,16 @@ func pi(s string) int {
 	return int(a)
 }
 
-type TickerDataCollection []TickerData
+type TickerDataSlice []TickerData
 
-func (t TickerDataCollection) Len() int {
-	return len([]TickerData(t))
+func (t TickerDataSlice) Len() int {
+	return len(t)
 }
-func (t TickerDataCollection) Less(i, j int) bool {
-	a := ([]TickerData(t))[i]
-	b := ([]TickerData(t))[j]
-	return a.date < b.date
+func (t TickerDataSlice) Less(i, j int) bool {
+	return t[i].date < t[j].date
 }
-func (t TickerDataCollection) Swap(i, j int) {
-	a := ([]TickerData(t))[i]
-	b := ([]TickerData(t))[j]
-	([]TickerData(t))[i] = b
-	([]TickerData(t))[j] = a
+func (t TickerDataSlice) Swap(i, j int) {
+	t[i],t[j] = t[j],t[i]
 }
 
 func readTickerData(filename string) ([]TickerData, error) {
@@ -107,16 +102,15 @@ func readTickerData(filename string) ([]TickerData, error) {
 	if err != nil { return nil, err }
 	records = records[1:] // chomp the first line; it's the header
 
-	result := TickerDataCollection(make([]TickerData, len(records)))
+	result := TickerDataSlice(make([]TickerData, len(records)))
 	for i := 0; i < len(records); i++ {
 		r := records[i];
 		d := TickerData{r[0], pc(r[1]), pc(r[2]), pc(r[3]), pc(r[4]), pi(r[5]), pc(r[6])}
 		result[i] = d
-		i++;
 	}
 	sort.Sort(result)
 
-	return nil, nil
+	return result, nil
 }
 
 func main() {
@@ -134,6 +128,6 @@ func main() {
 	data, err := readTickerData(filename);
 
 	for v := range data {
-		fmt.Println(v)
+		fmt.Println(data[v])
 	}
 }
