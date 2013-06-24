@@ -113,6 +113,40 @@ func readTickerData(filename string) ([]TickerData, error) {
 	return result, nil
 }
 
+func analyze(t []TickerData) error {
+
+	// Just do the analysis here, I'll refactor it out later.
+
+	// If the stock ends lower than it opened, then buy at market.
+	// If the stock ends high and we've made 10%, then sell at market.
+	// This is sure to lose money, but I'll try the algorithm anyway.
+	cash := 1000.0
+	shares := 0
+
+	// how to track gains?
+	buycost := 0
+
+	for i, v := range t {
+		if v.closev < v.openv && cash > 0 {
+			// Buy
+			fmt.Println("Buying.")
+			// How many shares can we buy?
+			// Assume we can buy at market open
+			sharesbuy := cash / v.adjclose
+
+			shares += sharesbuy
+			buycost = sharesbuy * v.adjclose
+			cash -= (sharesbuy * v.adjclose)
+
+		}
+
+		if v.closev > v.openv && (v.adjclose * shares) > buycost * 1.10 {
+			// Sell
+			fmt.Println("Sell.")
+		}
+	}
+}
+
 func main() {
 	fmt.Println("Starting")
 
@@ -130,4 +164,10 @@ func main() {
 	for v := range data {
 		fmt.Println(data[v])
 	}
+
+	analyze(data)
 }
+
+
+
+
