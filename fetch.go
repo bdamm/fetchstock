@@ -61,20 +61,21 @@ func fetchSymbol(sym string, filename string) error {
 	return nil
 }
 
+type currency float32
 type TickerData struct {
 	date string
-	openv float32
-	highv float32
-	lowv float32
-	closev float32
+	openv currency
+	highv currency
+	lowv currency
+	closev currency
 	volume int
-	adjclose float32
+	adjclose currency
 }
 
-func pc(s string) float32 {
+func pc(s string) currency {
 	a, e := strconv.ParseFloat(s, 32)
 	if e != nil {panic(e)}
-	return float32(a)
+	return currency(a)
 }
 func pi(s string) int {
 	a, e := strconv.ParseInt(s, 10, 0)
@@ -93,6 +94,7 @@ func (t TickerDataSlice) Less(i, j int) bool {
 func (t TickerDataSlice) Swap(i, j int) {
 	t[i],t[j] = t[j],t[i]
 }
+
 
 func readTickerData(filename string) ([]TickerData, error) {
 	filereader, err := os.Open(filename)
@@ -120,31 +122,39 @@ func analyze(t []TickerData) error {
 	// If the stock ends lower than it opened, then buy at market.
 	// If the stock ends high and we've made 10%, then sell at market.
 	// This is sure to lose money, but I'll try the algorithm anyway.
-	cash := 1000.0
+	cash := currency(1000.0)
 	shares := 0
 
 	// how to track gains?
-	buycost := 0
+	buycost := currency(0)
 
-	for i, v := range t {
+	for _, v := range t {
 		if v.closev < v.openv && cash > 0 {
 			// Buy
 			fmt.Println("Buying.")
 			// How many shares can we buy?
 			// Assume we can buy at market open
-			sharesbuy := cash / v.adjclose
+			sharesbuy := int(cash / v.adjclose)
 
 			shares += sharesbuy
-			buycost = sharesbuy * v.adjclose
-			cash -= (sharesbuy * v.adjclose)
+			buycost = currency(sharesbuy) * v.adjclose
+			cash -= currency(sharesbuy) * v.adjclose
 
 		}
 
-		if v.closev > v.openv && (v.adjclose * shares) > buycost * 1.10 {
+		if v.closev > v.openv && (v.adjclose * currency(shares)) > (buycost * 1.10) {
 			// Sell
-			fmt.Println("Sell.")
+			fmt.Println("Selling.")
+			// Assume we sell all our shares
+			// Assume we can sell at market open
+			saleprice := currency(shares) * v.adjclose
+			cash += saleprice
+			shares -= shares // strange way to say shares = 0, but I don't want to change it.
+
 		}
 	}
+
+	return nil
 }
 
 func main() {
