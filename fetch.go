@@ -38,7 +38,7 @@ func (t tickerRange) ToYahooUrl() (*string, error) {
 func fetchSymbol(sym string, filename string) error {
 	ticker := ticker{sym}
 
-	tickerRange := tickerRange{ticker, 2000, 01, 01, 2000, 12, 31}
+	tickerRange := tickerRange{ticker, 2000, 01, 01, 2005, 12, 31}
 
 	url,err := tickerRange.ToYahooUrl()
 	if err != nil { return err }
@@ -116,7 +116,7 @@ func readTickerData(filename string) ([]TickerData, error) {
 }
 
 func analyze(t []TickerData) error {
-
+	fmt.Printf("\nBeginning trading\n");
 	// Just do the analysis here, I'll refactor it out later.
 
 	// If the stock ends lower than it opened, then buy at market.
@@ -127,32 +127,41 @@ func analyze(t []TickerData) error {
 
 	// how to track gains?
 	buycost := currency(0)
+	finalsaleprice := currency(0.0)
 
 	for _, v := range t {
-		if v.closev < v.openv && cash > 0 {
+		if v.closev < v.openv && cash > v.adjclose {
 			// Buy
-			fmt.Println("Buying.")
 			// How many shares can we buy?
 			// Assume we can buy at market open
-			sharesbuy := int(cash / v.adjclose)
+			buyfor := v.adjclose
+			sharesbuy := int(cash / buyfor)
 
 			shares += sharesbuy
-			buycost = currency(sharesbuy) * v.adjclose
-			cash -= currency(sharesbuy) * v.adjclose
+			buycost = currency(sharesbuy) * buyfor
+			cash -= buycost
 
+			fmt.Printf("Bought %v shares at %v, cost %v and have %v cash remaining.\n", sharesbuy, buyfor, buycost, cash)
 		}
 
 		if v.closev > v.openv && (v.adjclose * currency(shares)) > (buycost * 1.10) {
 			// Sell
-			fmt.Println("Selling.")
 			// Assume we sell all our shares
 			// Assume we can sell at market open
-			saleprice := currency(shares) * v.adjclose
+			sellfor := v.adjclose;
+			saleprice := currency(shares) * sellfor
 			cash += saleprice
+			fmt.Printf("Selling %v shares at %v: Cash is %v\n", shares, sellfor, cash)
 			shares -= shares // strange way to say shares = 0, but I don't want to change it.
-
 		}
+
+		finalsaleprice = v.adjclose
 	}
+
+	finalsell:=currency(shares)*finalsaleprice
+	fmt.Printf("Final sale: %v shares at %v yield %v\n", shares, finalsaleprice, finalsell)
+	cash+=finalsell
+	fmt.Printf("Final cash: %v\n", cash)
 
 	return nil
 }
