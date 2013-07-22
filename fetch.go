@@ -7,6 +7,7 @@ import "encoding/csv"
 import "os"
 import "sort"
 import "strconv"
+import "errors"
 
 
 type ticker struct {
@@ -115,13 +116,67 @@ func readTickerData(filename string) ([]TickerData, error) {
 	return result, nil
 }
 
-func analyze(t []TickerData) error {
-	fmt.Printf("\nBeginning trading\n");
-	// Just do the analysis here, I'll refactor it out later.
+type Logger interface {
+	Info(format string, a ...interface{}) error
+}
 
-	// If the stock ends lower than it opened, then buy at market.
-	// If the stock ends high and we've made 10%, then sell at market.
-	// This is sure to lose money, but I'll try the algorithm anyway.
+type TradeLogger struct {
+	prefix string;
+}
+
+func (t TradeLogger) Info(format string, a ...interface{}) error {
+	_, e := fmt.Printf("%s %s\n", t.prefix, fmt.Sprintf(format, a...));
+	return e;
+}
+
+type Holding struct {
+	// A holding is a single investment
+	shares int
+	cost currency // per-share purchase price
+	ticker ticker
+}
+
+type Account struct {
+	// An account holds cash and shares
+	cash currency
+	shares []Holding
+}
+
+/** 
+ * Adds the Holding if there is sufficient funds and adjusts cash on hand.
+ * cost is per-share cost.
+ */
+func (a *Account) BuyHolding(shares int, cost currency, ticker ticker) error {
+	buycost := cost * currency(shares)
+	if a.cash < buycost {
+		return errors.New("Insufficient funds.");
+	}
+
+	h := Holding{shares, cost, ticker}
+	a.shares = append(a.shares, h)
+	a.cash -= buycost
+	return nil
+}
+
+func (a *Account) SellHolding(shares int, saleprice currency, ticker ticker) (remaining_shares int, e error) {
+	for _, h := range(a.shares) {
+		thisround := shares
+		if h.ticker != ticker { continue }
+		if h.shares < thisround {
+			thisround = h.shares
+		}
+		if h.shares >= thisround {
+			h.shares -= thisround
+			a.cash += currency(thisround) * saleprice
+			shares -= thisround
+		}
+		if shares == 0 { break; }
+	}
+
+	return shares, nil
+}
+
+func simple_buy_if_down_sell_if_up(in chan TickerData, doneflag chan currency, log Logger) {
 	cash := currency(1000.0)
 	shares := 0
 
@@ -129,7 +184,10 @@ func analyze(t []TickerData) error {
 	buycost := currency(0)
 	finalsaleprice := currency(0.0)
 
-	for _, v := range t {
+	// If the stock ends lower than it opened, then buy at market.
+	// If the stock ends high and we've made 10%, then sell at market.
+	// This is sure to lose money, but I'll try the algorithm anyway.
+	for v := range in {
 		if v.closev < v.openv && cash > v.adjclose {
 			// Buy
 			// How many shares can we buy?
@@ -141,7 +199,7 @@ func analyze(t []TickerData) error {
 			buycost = currency(sharesbuy) * buyfor
 			cash -= buycost
 
-			fmt.Printf("Bought %v shares at %v, cost %v and have %v cash remaining.\n", sharesbuy, buyfor, buycost, cash)
+			log.Info("Bought %v shares at %v, cost %v and have %v cash remaining.", sharesbuy, buyfor, buycost, cash)
 		}
 
 		if v.closev > v.openv && (v.adjclose * currency(shares)) > (buycost * 1.10) {
@@ -151,7 +209,7 @@ func analyze(t []TickerData) error {
 			sellfor := v.adjclose;
 			saleprice := currency(shares) * sellfor
 			cash += saleprice
-			fmt.Printf("Selling %v shares at %v: Cash is %v\n", shares, sellfor, cash)
+			log.Info("Selling %v shares at %v: Cash is %v", shares, sellfor, cash)
 			shares -= shares // strange way to say shares = 0, but I don't want to change it.
 		}
 
@@ -159,12 +217,33 @@ func analyze(t []TickerData) error {
 	}
 
 	finalsell:=currency(shares)*finalsaleprice
-	fmt.Printf("Final sale: %v shares at %v yield %v\n", shares, finalsaleprice, finalsell)
+	log.Info("Final sale: %v shares at %v yield %v", shares, finalsaleprice, finalsell)
 	cash+=finalsell
-	fmt.Printf("Final cash: %v\n", cash)
+	log.Info("Final cash: %v", cash)
+
+	doneflag <- cash
+}
+
+func analyze(t []TickerData) error {
+	fmt.Printf("\nBeginning trading\n");
+
+	out := make(chan TickerData)
+	doneflag := make(chan currency)
+	log := TradeLogger{"simple"}
+
+	go simple_buy_if_down_sell_if_up(out, doneflag, log)
+
+	for _, v := range t {
+		out <- v
+	}
+
+	close(out)
+
+	<- doneflag
 
 	return nil
 }
+
 
 func main() {
 	fmt.Println("Starting")
