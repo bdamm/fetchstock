@@ -116,19 +116,6 @@ func readTickerData(filename string) ([]TickerData, error) {
 	return result, nil
 }
 
-<<<<<<< HEAD
-func analyze(ticks chan TickerData) {
-	for tick := range ticks {
-		if tick.openv < tick.closev {
-			fmt.Println("Closed up")
-		} else {
-			fmt.Println("Down");
-		}
-
-	}
-}
-
-=======
 type Logger interface {
 	Info(format string, a ...interface{}) error
 }
@@ -258,7 +245,6 @@ func analyze(t []TickerData) error {
 }
 
 
->>>>>>> c0821d06f92524c40c939e4cdfeafded7c7153f3
 func main() {
 	fmt.Println("Starting")
 
