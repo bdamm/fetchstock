@@ -7,6 +7,7 @@ import "encoding/csv"
 import "os"
 import "sort"
 import "strconv"
+import "errors"
 
 
 type ticker struct {
@@ -38,7 +39,7 @@ func (t tickerRange) ToYahooUrl() (*string, error) {
 func fetchSymbol(sym string, filename string) error {
 	ticker := ticker{sym}
 
-	tickerRange := tickerRange{ticker, 2000, 01, 01, 2000, 12, 31}
+	tickerRange := tickerRange{ticker, 2000, 01, 01, 2005, 12, 31}
 
 	url,err := tickerRange.ToYahooUrl()
 	if err != nil { return err }
@@ -61,20 +62,21 @@ func fetchSymbol(sym string, filename string) error {
 	return nil
 }
 
+type currency float32
 type TickerData struct {
 	date string
-	openv float32
-	highv float32
-	lowv float32
-	closev float32
+	openv currency
+	highv currency
+	lowv currency
+	closev currency
 	volume int
-	adjclose float32
+	adjclose currency
 }
 
-func pc(s string) float32 {
+func pc(s string) currency {
 	a, e := strconv.ParseFloat(s, 32)
 	if e != nil {panic(e)}
-	return float32(a)
+	return currency(a)
 }
 func pi(s string) int {
 	a, e := strconv.ParseInt(s, 10, 0)
@@ -93,6 +95,7 @@ func (t TickerDataSlice) Less(i, j int) bool {
 func (t TickerDataSlice) Swap(i, j int) {
 	t[i],t[j] = t[j],t[i]
 }
+
 
 func readTickerData(filename string) ([]TickerData, error) {
 	filereader, err := os.Open(filename)
@@ -113,6 +116,7 @@ func readTickerData(filename string) ([]TickerData, error) {
 	return result, nil
 }
 
+<<<<<<< HEAD
 func analyze(ticks chan TickerData) {
 	for tick := range ticks {
 		if tick.openv < tick.closev {
@@ -124,6 +128,137 @@ func analyze(ticks chan TickerData) {
 	}
 }
 
+=======
+type Logger interface {
+	Info(format string, a ...interface{}) error
+}
+
+type TradeLogger struct {
+	prefix string;
+}
+
+func (t TradeLogger) Info(format string, a ...interface{}) error {
+	_, e := fmt.Printf("%s %s\n", t.prefix, fmt.Sprintf(format, a...));
+	return e;
+}
+
+type Holding struct {
+	// A holding is a single investment
+	shares int
+	cost currency // per-share purchase price
+	ticker ticker
+}
+
+type Account struct {
+	// An account holds cash and shares
+	cash currency
+	shares []Holding
+}
+
+/** 
+ * Adds the Holding if there is sufficient funds and adjusts cash on hand.
+ * cost is per-share cost.
+ */
+func (a *Account) BuyHolding(shares int, cost currency, ticker ticker) error {
+	buycost := cost * currency(shares)
+	if a.cash < buycost {
+		return errors.New("Insufficient funds.");
+	}
+
+	h := Holding{shares, cost, ticker}
+	a.shares = append(a.shares, h)
+	a.cash -= buycost
+	return nil
+}
+
+func (a *Account) SellHolding(shares int, saleprice currency, ticker ticker) (remaining_shares int, e error) {
+	for _, h := range(a.shares) {
+		thisround := shares
+		if h.ticker != ticker { continue }
+		if h.shares < thisround {
+			thisround = h.shares
+		}
+		if h.shares >= thisround {
+			h.shares -= thisround
+			a.cash += currency(thisround) * saleprice
+			shares -= thisround
+		}
+		if shares == 0 { break; }
+	}
+
+	return shares, nil
+}
+
+func simple_buy_if_down_sell_if_up(in chan TickerData, doneflag chan currency, log Logger) {
+	cash := currency(1000.0)
+	shares := 0
+
+	// how to track gains?
+	buycost := currency(0)
+	finalsaleprice := currency(0.0)
+
+	// If the stock ends lower than it opened, then buy at market.
+	// If the stock ends high and we've made 10%, then sell at market.
+	// This is sure to lose money, but I'll try the algorithm anyway.
+	for v := range in {
+		if v.closev < v.openv && cash > v.adjclose {
+			// Buy
+			// How many shares can we buy?
+			// Assume we can buy at market open
+			buyfor := v.adjclose
+			sharesbuy := int(cash / buyfor)
+
+			shares += sharesbuy
+			buycost = currency(sharesbuy) * buyfor
+			cash -= buycost
+
+			log.Info("Bought %v shares at %v, cost %v and have %v cash remaining.", sharesbuy, buyfor, buycost, cash)
+		}
+
+		if v.closev > v.openv && (v.adjclose * currency(shares)) > (buycost * 1.10) {
+			// Sell
+			// Assume we sell all our shares
+			// Assume we can sell at market open
+			sellfor := v.adjclose;
+			saleprice := currency(shares) * sellfor
+			cash += saleprice
+			log.Info("Selling %v shares at %v: Cash is %v", shares, sellfor, cash)
+			shares -= shares // strange way to say shares = 0, but I don't want to change it.
+		}
+
+		finalsaleprice = v.adjclose
+	}
+
+	finalsell:=currency(shares)*finalsaleprice
+	log.Info("Final sale: %v shares at %v yield %v", shares, finalsaleprice, finalsell)
+	cash+=finalsell
+	log.Info("Final cash: %v", cash)
+
+	doneflag <- cash
+}
+
+func analyze(t []TickerData) error {
+	fmt.Printf("\nBeginning trading\n");
+
+	out := make(chan TickerData)
+	doneflag := make(chan currency)
+	log := TradeLogger{"simple"}
+
+	go simple_buy_if_down_sell_if_up(out, doneflag, log)
+
+	for _, v := range t {
+		out <- v
+	}
+
+	close(out)
+
+	<- doneflag
+
+	return nil
+}
+
+
+>>>>>>> c0821d06f92524c40c939e4cdfeafded7c7153f3
 func main() {
 	fmt.Println("Starting")
 
@@ -141,4 +276,10 @@ func main() {
 	for v := range data {
 		fmt.Println(data[v])
 	}
+
+	analyze(data)
 }
+
+
+
+

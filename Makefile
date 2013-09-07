@@ -9,3 +9,6 @@ fmt:
 
 packages:
 	go get "github.com/cfdrake/go-ystocks"
+
+clean:
+	go clean
